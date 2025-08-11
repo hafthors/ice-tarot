@@ -1,0 +1,237 @@
+import React, { useState, useEffect } from "react";
+import { TarotReading, User } from "@/entities/all";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Calendar, BookOpen, ArrowLeft, Trash2 } from "lucide-react";
+import { motion } from "framer-motion";
+import { format } from "date-fns";
+import { useNavigate } from "react-router-dom";
+import { createPageUrl } from "@/utils";
+
+export default function History() {
+  const navigate = useNavigate();
+  const [readings, setReadings] = useState([]);
+  const [selectedReading, setSelectedReading] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadReadings();
+  }, []);
+
+  const loadReadings = async () => {
+    try {
+      const user = await User.me();
+      const fetchedReadings = await TarotReading.filter(
+        { created_by: user.email },
+        '-created_date'
+      );
+      setReadings(fetchedReadings);
+    } catch (error) {
+      console.error("Error loading readings:", error);
+    }
+    setIsLoading(false);
+  };
+
+  const deleteReading = async (readingId) => {
+    try {
+      await TarotReading.delete(readingId);
+      setReadings(readings.filter(r => r.id !== readingId));
+      if (selectedReading?.id === readingId) {
+        setSelectedReading(null);
+      }
+    } catch (error) {
+      console.error("Error deleting reading:", error);
+    }
+  };
+
+  const getReadingTypeDisplay = (type) => {
+    return type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
+  return (
+    <div className="min-h-screen p-6 md:p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center gap-4 mb-8">
+          <Button
+            variant="ghost"
+            onClick={() => navigate(createPageUrl("Dashboard"))}
+            className="text-purple-300 hover:text-white hover:bg-purple-800/20"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-white">Reading History</h1>
+            <p className="text-purple-300">Review your past tarot readings and insights</p>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="text-center py-16">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center mystical-glow animate-pulse">
+              <Calendar className="w-8 h-8 text-white" />
+            </div>
+            <p className="text-purple-300">Loading your spiritual journey...</p>
+          </div>
+        ) : readings.length > 0 ? (
+          <div className="grid lg:grid-cols-3 gap-6">
+            {/* Readings List */}
+            <div className="lg:col-span-2 space-y-4">
+              {readings.map((reading, index) => (
+                <motion.div
+                  key={reading.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                >
+                  <Card 
+                    className={`bg-black/40 border-purple-800/30 backdrop-blur-sm card-hover cursor-pointer ${
+                      selectedReading?.id === reading.id ? 'border-purple-500 mystical-glow' : ''
+                    }`}
+                    onClick={() => setSelectedReading(reading)}
+                  >
+                    <CardContent className="p-6">
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Badge variant="secondary" className="bg-purple-700/30 text-purple-200">
+                              {getReadingTypeDisplay(reading.reading_type)}
+                            </Badge>
+                            <span className="text-purple-400 text-sm">
+                              {format(new Date(reading.created_date), 'MMM d, yyyy')}
+                            </span>
+                          </div>
+                          <h3 className="text-white font-semibold">
+                            {reading.cards?.[0]?.card_name}
+                            {reading.cards?.length > 1 && ` +${reading.cards.length - 1} more cards`}
+                          </h3>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteReading(reading.id);
+                          }}
+                          className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+
+                      <div className="flex gap-2 mb-4">
+                        {reading.cards?.slice(0, 3).map((card, cardIndex) => (
+                          <div key={cardIndex} className="flex items-center gap-2">
+                            <div className="w-8 h-12 bg-gradient-to-br from-purple-600 to-pink-600 rounded-sm flex items-center justify-center">
+                              <span className="text-white text-xs font-bold transform" style={{
+                                transform: card.is_reversed ? 'rotate(180deg)' : 'none'
+                              }}>
+                                {card.card_name?.[0]}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                        {reading.cards?.length > 3 && (
+                          <span className="text-purple-400 text-sm">+{reading.cards.length - 3}</span>
+                        )}
+                      </div>
+
+                      <p className="text-purple-200 text-sm line-clamp-2">
+                        {reading.overall_interpretation}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Reading Detail */}
+            <div className="lg:col-span-1">
+              {selectedReading ? (
+                <Card className="bg-black/40 border-purple-800/30 backdrop-blur-sm sticky top-8">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center gap-2">
+                      <BookOpen className="w-5 h-5" />
+                      Reading Details
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div>
+                      <div className="flex items-center gap-2 mb-4">
+                        <Badge variant="secondary" className="bg-purple-700/30 text-purple-200">
+                          {getReadingTypeDisplay(selectedReading.reading_type)}
+                        </Badge>
+                        <span className="text-purple-400 text-sm">
+                          {format(new Date(selectedReading.created_date), 'MMMM d, yyyy')}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      {selectedReading.cards?.map((card, index) => (
+                        <div key={index} className="p-3 bg-purple-900/20 rounded-lg border border-purple-700/30">
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className={`w-8 h-12 bg-gradient-to-br from-purple-600 to-pink-600 rounded-sm flex items-center justify-center ${
+                              card.is_reversed ? 'transform rotate-180' : ''
+                            }`}>
+                              <span className={`text-white text-xs font-bold ${card.is_reversed ? 'transform rotate-180' : ''}`}>
+                                {card.card_name?.[0]}
+                              </span>
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="text-white font-medium text-sm">{card.card_name}</h4>
+                              <p className="text-purple-400 text-xs">{card.position}</p>
+                            </div>
+                            {card.is_reversed && (
+                              <Badge variant="outline" className="border-orange-500 text-orange-400 text-xs">
+                                Reversed
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-purple-200 text-xs">{card.interpretation}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="p-4 bg-gradient-to-br from-purple-900/30 to-pink-900/30 rounded-lg border border-purple-700/30">
+                      <h4 className="text-white font-medium mb-2">Overall Interpretation</h4>
+                      <p className="text-purple-100 text-sm leading-relaxed">
+                        {selectedReading.overall_interpretation}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card className="bg-black/40 border-purple-800/30 backdrop-blur-sm">
+                  <CardContent className="p-8 text-center">
+                    <BookOpen className="w-12 h-12 mx-auto mb-4 text-purple-400" />
+                    <h3 className="text-white font-medium mb-2">Select a Reading</h3>
+                    <p className="text-purple-300 text-sm">
+                      Click on any reading from your history to view the full details and interpretation.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-16">
+            <Calendar className="w-16 h-16 mx-auto mb-4 text-purple-400" />
+            <h3 className="text-xl font-semibold text-white mb-2">No Readings Yet</h3>
+            <p className="text-purple-300 mb-6">
+              Your spiritual journey begins with your first card draw.
+            </p>
+            <Button
+              onClick={() => navigate(createPageUrl("CardDraw"))}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+            >
+              <BookOpen className="w-4 h-4 mr-2" />
+              Start Your First Reading
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
